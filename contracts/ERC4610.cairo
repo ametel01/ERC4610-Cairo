@@ -25,6 +25,10 @@ const IERC721_METADATA_ID = 0x5b5e139f
 const TRUE = 1
 const FALSE = 0
 
+@event
+func SetDelegator(caller : felt, delegator : felt, tokenId : Uint256):
+end
+
 @storage_var
 func _name() -> (name : felt):
 end
@@ -171,7 +175,7 @@ func setDelegator{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_
     let (owner) = _owners.read(tokenId)
     let (caller) = get_caller_address()
     if owner == caller:
-        _delegators.write(tokenId, delegator)
+        _setDelegator(delegator, tokenId)
         return ()
     end
     let (approved) = isApprovedForAll(owner, caller)
@@ -194,5 +198,28 @@ func safeTransferFrom{pedersen_ptr : HashBuiltin*, syscall_ptr : felt*, range_ch
     from_ : felt, to : felt, tokenId : Uint256, data_len : felt, data : felt*
 ):
     ERC721_safeTransferFrom(from_, to, tokenId, data_len, data)
+    return ()
+end
+
+@external
+func safeTransferFromOrDelegate{pedersen_ptr : HashBuiltin*, syscall_ptr : felt*, range_check_ptr}(
+    from_ : felt, to : felt, tokenId : Uint256, data_len : felt, data : felt*, reserved : felt
+):
+    alloc_locals
+    let (delegator) = _delegators.read(tokenId)
+    ERC721_safeTransferFrom(from_, to, tokenId, data_len, data)
+    if reserved == TRUE:
+        _setDelegator(delegator, tokenId)
+        return ()
+    end
+    return ()
+end
+
+func _setDelegator{pedersen_ptr : HashBuiltin*, syscall_ptr : felt*, range_check_ptr}(
+    delegator : felt, tokenId : Uint256
+):
+    _delegators.write(tokenId, delegator)
+    let (caller) = get_caller_address()
+    SetDelegator.emit(caller, delegator, tokenId)
     return ()
 end

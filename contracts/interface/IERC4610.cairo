@@ -40,6 +40,6 @@ namespace IERC4610:
     #
     # Emits a {Transfer} event.
     #
-    func safeTransferFrom(_from : felt, _to : felt, tokenId : felt, reserved : felt):
+    func safeTransferFromOrDelegate(_from : felt, _to : felt, tokenId : felt, reserved : felt):
     end
 end
