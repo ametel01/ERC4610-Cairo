@@ -4,7 +4,7 @@ import pytest
 import pytest_asyncio
 from starkware.starknet.testing.starknet import Starknet
 from starkware.starknet.testing.contract import StarknetContract
-from tests.utils import Signer
+from tests.utils.Signer import Signer
 
 ERC4610_FILE = os.path.join("contracts", "ERC4610.cairo")
 ACCOUNT_FILE = os.path.join("tests", "utils", "Account.cairo")
@@ -29,11 +29,16 @@ async def user_one(starknet: StarknetContract) -> StarknetContract:
         constructor_calldata=[user1.public_key])
 
 @pytest_asyncio.fixture
-async def ERC4610(starknet: StarknetContract) -> StarknetContract:
+async def ERC4610(starknet: StarknetContract, admin) -> StarknetContract:
     return await starknet.deploy(
         source=ERC4610_FILE,
-        constructor_calldata=[0x54657374, 0x546573744e4654])
+        constructor_calldata=[0x54657374, 0x546573744e4654, admin.contract_address])
 
 @pytest_asyncio.fixture
 async def deploy(admin, user_one, ERC4610):
+    (admin, user_one, erc4610) = admin, user_one, ERC4610
+    
     return(admin, user_one, ERC4610)
+
+
+

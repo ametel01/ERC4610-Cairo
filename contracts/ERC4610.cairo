@@ -24,6 +24,7 @@ from openzeppelin.token.erc721.library import (
     ERC721_burn,
     ERC721_only_token_owner,
     ERC721_setTokenURI,
+    ERC721_owners,
 )
 from openzeppelin.introspection.ERC165 import ERC165_supports_interface
 from openzeppelin.access.ownable import Ownable_initializer, Ownable_only_owner
@@ -45,10 +46,6 @@ end
 #
 # Storage
 #
-
-@storage_var
-func _owners(tokeId : Uint256) -> (owner : felt):
-end
 
 @storage_var
 func _delegators(tokeId : Uint256) -> (delegator : felt):
@@ -135,10 +132,7 @@ end
 func delegatorOf{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     tokenId : Uint256
 ) -> (address : felt):
-    let (owner) = _owners.read(tokenId)
-    with_attr error_message("ERC4610: delegated query for nonexistent token"):
-        assert_not_zero(owner)
-    end
+    Ownable_only_owner()
     let (delegator) = _delegators.read(tokenId)
     return (delegator)
 end
@@ -151,17 +145,17 @@ end
 func setDelegator{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     delegator : felt, tokenId : Uint256
 ):
-    let (owner) = _owners.read(tokenId)
+    let (owner) = ERC721_owners.read(tokenId)
     let (caller) = get_caller_address()
+    let (approved) = ERC721_isApprovedForAll(owner, caller)
+    if approved == TRUE:
+        _setDelegator(delegator, tokenId)
+        return ()
+    end
     if owner == caller:
         _setDelegator(delegator, tokenId)
         return ()
     end
-    let (approved) = isApprovedForAll(owner, caller)
-    with_attr error_message("ERC4610: setDelegator caller is not owner nor approved for all"):
-        assert approved = TRUE
-    end
-    _setDelegator(delegator, tokenId)
     return ()
 end
 
