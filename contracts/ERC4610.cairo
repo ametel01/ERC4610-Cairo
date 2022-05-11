@@ -1,90 +1,85 @@
+# SPDX-License-Identifier: MIT
+# OpenZeppelin Contracts for Cairo v0.1.0 (token/erc721/ERC721_Mintable_Burnable.cairo)
+
 %lang starknet
 
-from starkware.cairo.common.cairo_builtins import HashBuiltin
+from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
 from starkware.cairo.common.uint256 import Uint256
-from starkware.cairo.common.math import assert_not_zero
 from starkware.starknet.common.syscalls import get_caller_address
-from openzeppelin.introspection.ERC165 import ERC165_supports_interface
+from starkware.cairo.common.math import assert_not_zero
 from openzeppelin.token.erc721.library import (
-    ERC721_balanceOf,
-    ERC721_ownerOf,
     ERC721_name,
     ERC721_symbol,
-    ERC721_tokenURI,
-    ERC721_approve,
+    ERC721_balanceOf,
+    ERC721_ownerOf,
     ERC721_getApproved,
-    ERC721_setApprovalForAll,
     ERC721_isApprovedForAll,
+    ERC721_tokenURI,
+    ERC721_initializer,
+    ERC721_approve,
+    ERC721_setApprovalForAll,
     ERC721_transferFrom,
     ERC721_safeTransferFrom,
+    ERC721_mint,
+    ERC721_burn,
+    ERC721_only_token_owner,
+    ERC721_setTokenURI,
 )
+from openzeppelin.introspection.ERC165 import ERC165_supports_interface
+from openzeppelin.access.ownable import Ownable_initializer, Ownable_only_owner
 
-const IERC4610_ID = 0x7f3a4126
-const IERC721_ID = 0x80ac58cd
-const IERC721_METADATA_ID = 0x5b5e139f
 const TRUE = 1
-const FALSE = 0
+
+#
+# Events
+#
 
 @event
 func SetDelegator(caller : felt, delegator : felt, tokenId : Uint256):
 end
 
-@storage_var
-func _name() -> (name : felt):
+@event
+func ApprovalForAll(caller : felt, operator : felt, approved : felt):
 end
 
-@storage_var
-func _symbol() -> (symbol : felt):
-end
-
-@storage_var
-func _delegators(tokeId : Uint256) -> (delegator : felt):
-end
+#
+# Storage
+#
 
 @storage_var
 func _owners(tokeId : Uint256) -> (owner : felt):
 end
 
 @storage_var
-func _balances(address : felt) -> (balance : Uint256):
+func _delegators(tokeId : Uint256) -> (delegator : felt):
 end
 
-@storage_var
-func _tokenApprovals(tokeId : Uint256) -> (address : felt):
-end
-
-@storage_var
-func _operatorApprovals(owner : felt, operator : felt) -> (isApproved : felt):
-end
-
-# @dev  Initializes the contract by setting a 'name' and a 'symbol' to tho token collection.
 #
+# Constructor
+#
+
 @constructor
 func constructor{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
-    name : felt, symbol : felt
+    name : felt, symbol : felt, owner : felt
 ):
-    _name.write(name)
-    _symbol.write(symbol)
+    ERC721_initializer(name, symbol)
+    Ownable_initializer(owner)
     return ()
 end
 
-@external
-func SupportsInterface{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+#
+# Getters
+#
+
+@view
+func supportsInterface{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     interfaceId : felt
 ) -> (success : felt):
-    if interfaceId == IERC721_ID:
-        return (TRUE)
-    end
-    if interfaceId == IERC721_METADATA_ID:
-        return (TRUE)
-    end
-    if interfaceId == IERC4610_ID:
-        return (TRUE)
-    end
     let (success) = ERC165_supports_interface(interfaceId)
-    return (FALSE)
+    return (success)
 end
 
+@view
 func name{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}() -> (name : felt):
     let (name) = ERC721_name()
     return (name)
@@ -113,14 +108,6 @@ func ownerOf{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
 end
 
 @view
-func tokenURI{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
-    tokenId : Uint256
-) -> (tokenURI : felt):
-    let (tokenURI : felt) = ERC721_tokenURI(tokenId)
-    return (tokenURI)
-end
-
-@view
 func getApproved{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     tokenId : Uint256
 ) -> (approved : felt):
@@ -137,6 +124,14 @@ func isApprovedForAll{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_ch
 end
 
 @view
+func tokenURI{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+    tokenId : Uint256
+) -> (tokenURI : felt):
+    let (tokenURI : felt) = ERC721_tokenURI(tokenId)
+    return (tokenURI)
+end
+
+@view
 func delegatorOf{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     tokenId : Uint256
 ) -> (address : felt):
@@ -148,25 +143,9 @@ func delegatorOf{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_p
     return (delegator)
 end
 
-##########################################################################################
-#                                   EXTERNALS                                            #
-##########################################################################################
-
-@external
-func approve{pedersen_ptr : HashBuiltin*, syscall_ptr : felt*, range_check_ptr}(
-    to : felt, tokenId : Uint256
-):
-    ERC721_approve(to, tokenId)
-    return ()
-end
-
-@external
-func setApprovalForAll{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
-    operator : felt, approved : felt
-):
-    ERC721_setApprovalForAll(operator, approved)
-    return ()
-end
+#
+# Externals
+#
 
 @external
 func setDelegator{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
@@ -182,6 +161,24 @@ func setDelegator{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_
     with_attr error_message("ERC4610: setDelegator caller is not owner nor approved for all"):
         assert approved = TRUE
     end
+    _setDelegator(delegator, tokenId)
+    return ()
+end
+
+@external
+func approve{pedersen_ptr : HashBuiltin*, syscall_ptr : felt*, range_check_ptr}(
+    to : felt, tokenId : Uint256
+):
+    ERC721_approve(to, tokenId)
+    return ()
+end
+
+@external
+func setApprovalForAll{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+    operator : felt, approved : felt
+):
+    let (caller) = get_caller_address()
+    ERC721_setApprovalForAll(operator, approved)
     return ()
 end
 
@@ -214,6 +211,35 @@ func safeTransferFromOrDelegate{pedersen_ptr : HashBuiltin*, syscall_ptr : felt*
     end
     return ()
 end
+
+@external
+func setTokenURI{pedersen_ptr : HashBuiltin*, syscall_ptr : felt*, range_check_ptr}(
+    tokenId : Uint256, tokenURI : felt
+):
+    Ownable_only_owner()
+    ERC721_setTokenURI(tokenId, tokenURI)
+    return ()
+end
+
+@external
+func mint{pedersen_ptr : HashBuiltin*, syscall_ptr : felt*, range_check_ptr}(
+    to : felt, tokenId : Uint256
+):
+    Ownable_only_owner()
+    ERC721_mint(to, tokenId)
+    return ()
+end
+
+@external
+func burn{pedersen_ptr : HashBuiltin*, syscall_ptr : felt*, range_check_ptr}(tokenId : Uint256):
+    ERC721_only_token_owner(tokenId)
+    ERC721_burn(tokenId)
+    return ()
+end
+
+#
+# Internals
+#
 
 func _setDelegator{pedersen_ptr : HashBuiltin*, syscall_ptr : felt*, range_check_ptr}(
     delegator : felt, tokenId : Uint256
